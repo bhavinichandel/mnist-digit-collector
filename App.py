@@ -24,13 +24,19 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# HEADER (SAFE - since sheet is empty now)
+# SAFE HEADER CREATION
 # =========================
 
 headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
+
 data = sheet.get_all_values()
 
+# If sheet is empty OR corrupted → fix headers
 if len(data) == 0:
+    sheet.append_row(headers)
+
+elif len(data[0]) != 784 + 2:
+    sheet.clear()
     sheet.append_row(headers)
 
 # =========================
@@ -39,31 +45,23 @@ if len(data) == 0:
 
 st.title("MNIST Digit Collector")
 
-# name input
-name = st.text_input("Enter your name", key="name")
-
-# label (IMPORTANT: use safe key name)
-if "digit_label" not in st.session_state:
-    st.session_state["digit_label"] = 0
+name = st.text_input("Enter your name")
 
 digit_label = st.number_input(
     "Digit Label (0-9)",
     min_value=0,
     max_value=9,
-    step=1,
-    key="digit_label"
+    step=1
 )
 
 # =========================
-# CANVAS RESET CONTROL
+# CANVAS STATE (STABLE)
 # =========================
 
-if "canvas_toggle" not in st.session_state:
-    st.session_state.canvas_toggle = 0
+if "canvas_id" not in st.session_state:
+    st.session_state.canvas_id = 0
 
-canvas_key = f"canvas_{st.session_state.canvas_toggle}"
-
-canvas_result = st_canvas(
+canvas = st_canvas(
     fill_color="black",
     stroke_width=15,
     stroke_color="white",
@@ -71,7 +69,7 @@ canvas_result = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key=canvas_key,
+    key=f"canvas_{st.session_state.canvas_id}",
 )
 
 # =========================
@@ -81,26 +79,34 @@ canvas_result = st_canvas(
 def is_blank(img):
     return np.mean(img) < 5
 
-def reset_all():
-    # reset canvas
-    st.session_state.canvas_toggle = 1 - st.session_state.canvas_toggle
-
-    # reset label safely
-    st.session_state["digit_label"] = 0
+def reset_canvas():
+    st.session_state.canvas_id = 1 - st.session_state.canvas_id
 
 # =========================
-# IMAGE PROCESSING
+# IMAGE PROCESSING (IMPORTANT)
 # =========================
 
-if canvas_result.image_data is not None:
+if canvas.image_data is not None:
 
-    img = Image.fromarray(canvas_result.image_data.astype("uint8"))
+    img = Image.fromarray(canvas.image_data.astype("uint8"))
+
+    # Convert RGBA → grayscale
     img_array = np.array(img)
-
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
+
+    # Resize to MNIST format
     mnist_img = cv2.resize(gray, (28, 28))
 
-    st.image(mnist_img, caption="28x28 MNIST Image", width=200)
+    # SHOW RESULTS (THIS WAS MISSING BEFORE)
+    st.subheader("Preview")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.image(img, caption="Canvas (280x280)")
+
+    with col2:
+        st.image(mnist_img, caption="MNIST (28x28)")
 
     # =========================
     # SAVE BUTTON
@@ -124,5 +130,6 @@ if canvas_result.image_data is not None:
 
         st.success("Saved successfully ✅")
 
-        reset_all()
+        # reset canvas ONLY
+        reset_canvas()
         st.rerun()
