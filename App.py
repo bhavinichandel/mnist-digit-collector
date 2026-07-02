@@ -15,13 +15,13 @@ scopes = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = Credentials.from_service_account_file(
-    "mnist-digit-collector-501215-027e3c59a746.json",
+# ✅ WORKS ON CLOUD + LOCAL (using secrets)
+creds = Credentials.from_service_account_info(
+    st.secrets["google"],
     scopes=scopes
 )
 
 client = gspread.authorize(creds)
-
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
@@ -30,7 +30,9 @@ sheet = client.open("MNIST Dataset").sheet1
 
 headers = ["label"] + [f"pixel_{i}" for i in range(784)]
 
-if sheet.cell(1, 1).value is None:
+data = sheet.get_all_values()
+
+if len(data) == 0:
     sheet.append_row(headers)
 
 # =========================
@@ -62,31 +64,35 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# Image Processing
+# Convert image
 # =========================
+
+def is_blank(img):
+    return np.mean(img) < 5  # prevent empty save
 
 if canvas_result.image_data is not None:
 
     img = Image.fromarray(canvas_result.image_data.astype("uint8"))
-    st.image(img, caption="Original Image (280x280)")
+    st.image(img, caption="Original")
 
     img_array = np.array(img)
 
-    # Convert RGBA → grayscale
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
-    st.image(gray, caption="Grayscale Image")
-
-    # Resize to MNIST format
     mnist_img = cv2.resize(gray, (28, 28))
-    st.image(mnist_img, caption="MNIST Image (28x28)", width=200)
+
+    st.image(mnist_img, caption="28x28 MNIST Image", width=200)
 
     st.write("Shape:", mnist_img.shape)
 
     # =========================
-    # SAVE TO GOOGLE SHEETS
+    # SAVE BUTTON
     # =========================
 
     if st.button("Save to Google Sheets"):
+
+        if is_blank(mnist_img):
+            st.error("Canvas is empty! Draw a digit first.")
+            st.stop()
 
         pixels = mnist_img.flatten().tolist()
         row = [int(digit_label)] + pixels
