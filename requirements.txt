@@ -1,7 +1,7 @@
 streamlit
 streamlit-drawable-canvas
 numpy
-pandas
-opencv-python
-Pillow
-openpyxl
+pillow
+opencv-python-headless
+gspread
+google-auth
