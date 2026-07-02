@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# GOOGLE SHEETS SETUP
+# GOOGLE SHEETS
 # =========================
 
 scopes = [
@@ -24,14 +24,11 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# HEADER (SAFE)
+# HEADER
 # =========================
 
-headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
-data = sheet.get_all_values()
-
-if len(data) == 0:
-    sheet.append_row(headers)
+if len(sheet.get_all_values()) == 0:
+    sheet.append_row(["name", "label"] + [f"pixel_{i}" for i in range(784)])
 
 # =========================
 # UI
@@ -42,7 +39,7 @@ st.title("MNIST Digit Collector")
 name = st.text_input("Enter your name")
 
 # =========================
-# LABEL CONTROL (+ / -)
+# LABEL (+ / -)
 # =========================
 
 if "label" not in st.session_state:
@@ -58,27 +55,14 @@ with col3:
     if st.button("➕"):
         st.session_state.label = min(9, st.session_state.label + 1)
 
-with col2:
-    st.markdown(
-        f"<h2 style='text-align:center'>Label: {st.session_state.label}</h2>",
-        unsafe_allow_html=True
-    )
-
-digit_label = st.session_state.label
+st.markdown(f"## Label: {st.session_state.label}")
 
 # =========================
-# CANVAS RESET CONTROL (IMPORTANT FIX)
+# CANVAS RESET CONTROL
 # =========================
 
 if "canvas_id" not in st.session_state:
     st.session_state.canvas_id = 0
-
-def reset_canvas():
-    st.session_state.canvas_id += 1
-
-# =========================
-# CANVAS
-# =========================
 
 canvas = st_canvas(
     fill_color="black",
@@ -92,45 +76,53 @@ canvas = st_canvas(
 )
 
 # =========================
+# STORE DRAWING SAFELY (IMPORTANT FIX)
+# =========================
+
+if canvas.image_data is not None:
+    st.session_state.last_draw = canvas.image_data
+
+# =========================
 # HELPERS
 # =========================
 
 def is_blank(img):
     return np.mean(img) < 5
 
+def reset_canvas():
+    st.session_state.canvas_id += 1
+
 # =========================
-# PROCESS IMAGE
+# SAVE BUTTON
 # =========================
 
-if canvas.image_data is not None:
+if st.button("Save to Google Sheets"):
 
-    img = Image.fromarray(canvas.image_data.astype("uint8"))
+    if not name:
+        st.error("Enter name")
+        st.stop()
+
+    # 🔥 USE STORED DRAWING (NOT LIVE CANVAS)
+    if "last_draw" not in st.session_state:
+        st.error("Canvas is empty. Draw something first.")
+        st.stop()
+
+    img = Image.fromarray(st.session_state.last_draw.astype("uint8"))
 
     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    st.image(mnist_img, caption="28x28 MNIST")
+    if is_blank(mnist_img):
+        st.error("Canvas is empty")
+        st.stop()
 
-    # =========================
-    # SAVE BUTTON
-    # =========================
+    pixels = mnist_img.flatten().tolist()
 
-    if st.button("Save to Google Sheets"):
+    sheet.append_row([name, st.session_state.label] + pixels)
 
-        if not name:
-            st.error("Enter your name")
-            st.stop()
+    st.success("Saved successfully ✅")
 
-        if is_blank(mnist_img):
-            st.error("Canvas is empty")
-            st.stop()
-
-        pixels = mnist_img.flatten().tolist()
-
-        sheet.append_row([name, digit_label] + pixels)
-
-        st.success("Saved successfully ✅")
-
-        # 🔥 THIS IS THE FIX (CLEAR CANVAS)
-        reset_canvas()
-        st.rerun()
+    # 🔥 CLEAR CANVAS PROPERLY
+    reset_canvas()
+    st.session_state.pop("last_draw", None)
+    st.rerun()
