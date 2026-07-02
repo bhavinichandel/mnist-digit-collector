@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# GOOGLE SHEETS
+# GOOGLE SHEETS SETUP
 # =========================
 
 scopes = [
@@ -21,10 +21,12 @@ creds = Credentials.from_service_account_info(
 )
 
 client = gspread.authorize(creds)
-sheet = client.open("MNIST Dataset").sheet1
+
+# 🔥 IMPORTANT: PUT YOUR SHEET ID HERE
+sheet = client.open_by_key("YOUR_SHEET_ID_HERE").sheet1
 
 # =========================
-# HEADER
+# INIT HEADER
 # =========================
 
 if len(sheet.get_all_values()) == 0:
@@ -37,14 +39,32 @@ if len(sheet.get_all_values()) == 0:
 st.title("MNIST Digit Collector")
 
 name = st.text_input("Enter your name")
-label_text = st.text_input("Digit (0-9)")
 
 # =========================
-# CANVAS (STABLE)
+# LABEL CONTROL (+ / - BUTTONS)
 # =========================
 
-if "canvas_id" not in st.session_state:
-    st.session_state.canvas_id = 0
+if "label" not in st.session_state:
+    st.session_state.label = 0
+
+col1, col2, col3 = st.columns([1, 2, 1])
+
+with col1:
+    if st.button("➖"):
+        st.session_state.label = max(0, st.session_state.label - 1)
+
+with col3:
+    if st.button("➕"):
+        st.session_state.label = min(9, st.session_state.label + 1)
+
+with col2:
+    st.markdown(f"<h2 style='text-align:center'>Label: {st.session_state.label}</h2>", unsafe_allow_html=True)
+
+digit_label = st.session_state.label
+
+# =========================
+# CANVAS (ORIGINAL STYLE)
+# =========================
 
 canvas = st_canvas(
     fill_color="black",
@@ -54,30 +74,15 @@ canvas = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key=f"canvas_{st.session_state.canvas_id}"
+    key="canvas"
 )
 
 # =========================
-# SAVE IMAGE INTO MEMORY (IMPORTANT FIX)
+# IMAGE PROCESSING
 # =========================
 
-if canvas.image_data is not None:
-    st.session_state.last_image = canvas.image_data
-
-# =========================
-# HELPERS
-# =========================
-
-def validate_label(x):
-    if x is None:
-        return None
-    x = x.strip()
-    if x.isdigit() and len(x) == 1:
-        return int(x)
-    return None
-
-def reset_canvas():
-    st.session_state.canvas_id = 1 - st.session_state.canvas_id
+def is_blank(img):
+    return np.mean(img) < 5
 
 # =========================
 # SAVE BUTTON
@@ -85,27 +90,19 @@ def reset_canvas():
 
 if st.button("Save to Google Sheets"):
 
-    digit_label = validate_label(label_text)
-
-    if digit_label is None:
-        st.error("Enter ONLY single digit (0-9)")
-        st.stop()
-
     if not name:
-        st.error("Enter name")
+        st.error("Enter your name")
         st.stop()
 
-    # 🔥 USE STORED IMAGE (NOT LIVE CANVAS)
-    if "last_image" not in st.session_state:
-        st.error("Canvas is empty. Draw something first.")
+    if canvas.image_data is None:
+        st.error("Draw something first")
         st.stop()
 
-    img = Image.fromarray(st.session_state.last_image.astype("uint8"))
-
+    img = Image.fromarray(canvas.image_data.astype("uint8"))
     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    if np.mean(mnist_img) < 5:
+    if is_blank(mnist_img):
         st.error("Canvas is empty")
         st.stop()
 
@@ -114,10 +111,3 @@ if st.button("Save to Google Sheets"):
     sheet.append_row([name, digit_label] + pixels)
 
     st.success("Saved successfully ✅")
-
-    reset_canvas()
-
-    # clear stored image
-    del st.session_state["last_image"]
-
-    st.rerun()
