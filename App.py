@@ -24,7 +24,7 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# HEADER SETUP
+# HEADER
 # =========================
 
 headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
@@ -39,12 +39,10 @@ if len(data) == 0:
 
 st.title("MNIST Digit Collector")
 
-name = st.text_input("Enter your name", key="name")
+# keep stable inputs
+name = st.text_input("Enter your name")
 
-# -------------------------
-# LABEL (SESSION STATE FIX)
-# -------------------------
-
+# label with stable key
 if "label" not in st.session_state:
     st.session_state.label = 0
 
@@ -57,13 +55,11 @@ digit_label = st.number_input(
 )
 
 # =========================
-# CANVAS STATE CONTROL
+# CANVAS (FIXED - SINGLE STABLE KEY)
 # =========================
 
-if "canvas_reset" not in st.session_state:
-    st.session_state.canvas_reset = False
-
-canvas_key = "canvas_" + str(st.session_state.canvas_reset)
+if "canvas_key" not in st.session_state:
+    st.session_state.canvas_key = "canvas_0"
 
 canvas_result = st_canvas(
     fill_color="black",
@@ -73,7 +69,7 @@ canvas_result = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key=canvas_key,
+    key=st.session_state.canvas_key,
 )
 
 # =========================
@@ -83,11 +79,14 @@ canvas_result = st_canvas(
 def is_blank(img):
     return np.mean(img) < 5
 
-def reset_inputs():
-    # reset canvas
-    st.session_state.canvas_reset = not st.session_state.canvas_reset
+def reset_all():
+    # reset canvas by changing key ONLY ONCE
+    if st.session_state.canvas_key == "canvas_0":
+        st.session_state.canvas_key = "canvas_1"
+    else:
+        st.session_state.canvas_key = "canvas_0"
 
-    # reset label
+    # reset label safely
     st.session_state.label = 0
 
 # =========================
@@ -97,8 +96,8 @@ def reset_inputs():
 if canvas_result.image_data is not None:
 
     img = Image.fromarray(canvas_result.image_data.astype("uint8"))
-
     img_array = np.array(img)
+
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
@@ -111,7 +110,7 @@ if canvas_result.image_data is not None:
     if st.button("Save to Google Sheets"):
 
         if not name:
-            st.error("Please enter your name first")
+            st.error("Enter your name first")
             st.stop()
 
         if is_blank(mnist_img):
@@ -119,12 +118,11 @@ if canvas_result.image_data is not None:
             st.stop()
 
         pixels = mnist_img.flatten().tolist()
-
         row = [name, int(digit_label)] + pixels
+
         sheet.append_row(row)
 
         st.success("Saved successfully ✅")
 
-        # RESET EVERYTHING
-        reset_inputs()
+        reset_all()
         st.rerun()
