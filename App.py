@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# Google Sheets Setup
+# GOOGLE SHEETS SETUP
 # =========================
 
 scopes = [
@@ -15,9 +15,8 @@ scopes = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# ✅ WORKS ON CLOUD + LOCAL (using secrets)
 creds = Credentials.from_service_account_info(
-    st.secrets["google"],
+    st.secrets["google"],   # keep your current key name
     scopes=scopes
 )
 
@@ -25,21 +24,22 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# Create headers (ONLY ONCE)
+# HEADER SETUP (run once)
 # =========================
 
-headers = ["label"] + [f"pixel_{i}" for i in range(784)]
-
+headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
 data = sheet.get_all_values()
 
 if len(data) == 0:
     sheet.append_row(headers)
 
 # =========================
-# Streamlit UI
+# UI
 # =========================
 
 st.title("MNIST Digit Collector")
+
+name = st.text_input("Enter your name")
 
 digit_label = st.number_input(
     "Digit Label (0-9)",
@@ -49,7 +49,14 @@ digit_label = st.number_input(
 )
 
 # =========================
-# Canvas
+# CANVAS STATE CONTROL
+# =========================
+
+if "clear_canvas" not in st.session_state:
+    st.session_state.clear_canvas = False
+
+# =========================
+# CANVAS
 # =========================
 
 canvas_result = st_canvas(
@@ -60,15 +67,18 @@ canvas_result = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key="canvas",
+    key="canvas" + str(st.session_state.clear_canvas),
 )
 
 # =========================
-# Convert image
+# IMAGE PROCESSING
 # =========================
 
 def is_blank(img):
-    return np.mean(img) < 5  # prevent empty save
+    return np.mean(img) < 5
+
+def clear_canvas():
+    st.session_state.clear_canvas = not st.session_state.clear_canvas
 
 if canvas_result.image_data is not None:
 
@@ -90,13 +100,21 @@ if canvas_result.image_data is not None:
 
     if st.button("Save to Google Sheets"):
 
+        if not name:
+            st.error("Please enter your name first")
+            st.stop()
+
         if is_blank(mnist_img):
             st.error("Canvas is empty! Draw a digit first.")
             st.stop()
 
         pixels = mnist_img.flatten().tolist()
-        row = [int(digit_label)] + pixels
+        row = [name, int(digit_label)] + pixels
 
         sheet.append_row(row)
 
         st.success("Saved to Google Sheets ✅")
+
+        # CLEAR CANVAS AFTER SAVE
+        clear_canvas()
+        st.rerun()
