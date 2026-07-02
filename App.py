@@ -7,7 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# GOOGLE SHEETS SETUP
+# Google Sheets Setup
 # =========================
 
 scopes = [
@@ -24,53 +24,39 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# HEADER (SAFE)
+# Create headers (ONLY ONCE)
 # =========================
 
 headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
+data = sheet.get_all_values()
 
-if len(sheet.get_all_values()) == 0:
+if len(data) == 0:
     sheet.append_row(headers)
 
 # =========================
-# UI
+# Streamlit UI
 # =========================
 
 st.title("MNIST Digit Collector")
 
-# NAME (keep as it is)
+# ✅ NAME ADDED
 name = st.text_input("Enter your name")
 
-# =========================
-# LABEL (+ / - ORIGINAL STYLE)
-# =========================
-
-if "label" not in st.session_state:
-    st.session_state.label = 0
-
-col1, col2, col3 = st.columns([1, 2, 1])
-
-with col1:
-    if st.button("➖"):
-        st.session_state.label = max(0, st.session_state.label - 1)
-
-with col3:
-    if st.button("➕"):
-        st.session_state.label = min(9, st.session_state.label + 1)
-
-with col2:
-    st.markdown(
-        f"<h2 style='text-align:center'>Label: {st.session_state.label}</h2>",
-        unsafe_allow_html=True
-    )
-
-digit_label = st.session_state.label
+digit_label = st.number_input(
+    "Digit Label (0-9)",
+    min_value=0,
+    max_value=9,
+    step=1
+)
 
 # =========================
-# CANVAS (STABLE - ORIGINAL FEEL)
+# CANVAS RESET CONTROL (IMPORTANT)
 # =========================
 
-canvas = st_canvas(
+if "canvas_key" not in st.session_state:
+    st.session_state.canvas_key = 0
+
+canvas_result = st_canvas(
     fill_color="black",
     stroke_width=15,
     stroke_color="white",
@@ -78,52 +64,52 @@ canvas = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key="canvas"
+    key=f"canvas_{st.session_state.canvas_key}",
 )
 
 # =========================
-# HELPERS
+# Convert image
 # =========================
 
 def is_blank(img):
     return np.mean(img) < 5
 
-# store drawing safely
-if canvas.image_data is not None:
-    st.session_state.last_draw = canvas.image_data
+if canvas_result.image_data is not None:
 
-# =========================
-# SAVE BUTTON
-# =========================
+    img = Image.fromarray(canvas_result.image_data.astype("uint8"))
+    st.image(img, caption="Original")
 
-if st.button("Save to Google Sheets"):
-
-    if not name:
-        st.error("Enter your name")
-        st.stop()
-
-    if "last_draw" not in st.session_state:
-        st.error("Canvas is empty. Draw something first.")
-        st.stop()
-
-    img = Image.fromarray(st.session_state.last_draw.astype("uint8"))
-
-    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2GRAY)
+    img_array = np.array(img)
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    if is_blank(mnist_img):
-        st.error("Canvas is empty")
-        st.stop()
-
-    pixels = mnist_img.flatten().tolist()
-
-    sheet.append_row([name, digit_label] + pixels)
-
-    st.success("Saved successfully ✅")
+    st.image(mnist_img, caption="28x28 MNIST Image", width=200)
 
     # =========================
-    # CLEAR CANVAS AFTER SAVE
+    # SAVE BUTTON
     # =========================
 
-    st.session_state.pop("last_draw", None)
-    st.rerun()
+    if st.button("Save to Google Sheets"):
+
+        if not name:
+            st.error("Please enter your name")
+            st.stop()
+
+        if is_blank(mnist_img):
+            st.error("Canvas is empty! Draw a digit first.")
+            st.stop()
+
+        pixels = mnist_img.flatten().tolist()
+
+        # ✅ NAME ADDED IN ROW
+        row = [name, int(digit_label)] + pixels
+
+        sheet.append_row(row)
+
+        st.success("Saved to Google Sheets ✅")
+
+        # =========================
+        # CLEAR CANVAS AFTER SAVE (FIX)
+        # =========================
+        st.session_state.canvas_key += 1
+        st.rerun()
