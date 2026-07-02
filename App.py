@@ -27,10 +27,8 @@ sheet = client.open("MNIST Dataset").sheet1
 # HEADER
 # =========================
 
-headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
-
 if len(sheet.get_all_values()) == 0:
-    sheet.append_row(headers)
+    sheet.append_row(["name", "label"] + [f"pixel_{i}" for i in range(784)])
 
 # =========================
 # UI
@@ -39,11 +37,10 @@ if len(sheet.get_all_values()) == 0:
 st.title("MNIST Digit Collector")
 
 name = st.text_input("Enter your name")
-
-label_text = st.text_input("Digit Label (0-9)")
+label_text = st.text_input("Digit (0-9)")
 
 # =========================
-# CANVAS
+# CANVAS (STABLE)
 # =========================
 
 if "canvas_id" not in st.session_state:
@@ -61,73 +58,66 @@ canvas = st_canvas(
 )
 
 # =========================
+# SAVE IMAGE INTO MEMORY (IMPORTANT FIX)
+# =========================
+
+if canvas.image_data is not None:
+    st.session_state.last_image = canvas.image_data
+
+# =========================
 # HELPERS
 # =========================
 
-def is_blank(img):
-    return np.mean(img) < 5
-
-def validate_label(label_str):
-    # STRICT RULES HERE (THIS IS KEY FIX)
-    if label_str is None:
+def validate_label(x):
+    if x is None:
         return None
-
-    label_str = label_str.strip()
-
-    if label_str == "":
-        return None
-
-    if not label_str.isdigit():
-        return None
-
-    if len(label_str) != 1:
-        return None
-
-    return int(label_str)
+    x = x.strip()
+    if x.isdigit() and len(x) == 1:
+        return int(x)
+    return None
 
 def reset_canvas():
     st.session_state.canvas_id = 1 - st.session_state.canvas_id
 
 # =========================
-# PROCESS IMAGE
+# SAVE BUTTON
 # =========================
 
-if canvas.image_data is not None:
+if st.button("Save to Google Sheets"):
 
-    img = Image.fromarray(canvas.image_data.astype("uint8"))
-    img_array = np.array(img)
+    digit_label = validate_label(label_text)
 
-    gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
+    if digit_label is None:
+        st.error("Enter ONLY single digit (0-9)")
+        st.stop()
+
+    if not name:
+        st.error("Enter name")
+        st.stop()
+
+    # 🔥 USE STORED IMAGE (NOT LIVE CANVAS)
+    if "last_image" not in st.session_state:
+        st.error("Canvas is empty. Draw something first.")
+        st.stop()
+
+    img = Image.fromarray(st.session_state.last_image.astype("uint8"))
+
+    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    st.image(mnist_img, caption="28×28 MNIST")
+    if np.mean(mnist_img) < 5:
+        st.error("Canvas is empty")
+        st.stop()
 
-    # =========================
-    # SAVE BUTTON (CRITICAL FIX HERE)
-    # =========================
+    pixels = mnist_img.flatten().tolist()
 
-    if st.button("Save to Google Sheets"):
+    sheet.append_row([name, digit_label] + pixels)
 
-        digit_label = validate_label(label_text)
+    st.success("Saved successfully ✅")
 
-        # 🔥 VALIDATION DONE AT CLICK TIME (FIXES YOUR 11 ISSUE)
-        if digit_label is None:
-            st.error("Invalid label! Enter ONLY a single digit (0–9)")
-            st.stop()
+    reset_canvas()
 
-        if not name:
-            st.error("Enter name first")
-            st.stop()
+    # clear stored image
+    del st.session_state["last_image"]
 
-        if is_blank(mnist_img):
-            st.error("Canvas is empty")
-            st.stop()
-
-        pixels = mnist_img.flatten().tolist()
-
-        sheet.append_row([name, digit_label] + pixels)
-
-        st.success("Saved successfully ✅")
-
-        reset_canvas()
-        st.rerun()
+    st.rerun()
