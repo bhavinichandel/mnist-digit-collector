@@ -42,7 +42,7 @@ st.title("MNIST Digit Collector")
 name = st.text_input("Enter your name")
 
 # =========================
-# LABEL + / -
+# LABEL CONTROL (+ / -)
 # =========================
 
 if "label" not in st.session_state:
@@ -67,7 +67,17 @@ with col2:
 digit_label = st.session_state.label
 
 # =========================
-# CANVAS (ORIGINAL STYLE)
+# CANVAS RESET CONTROL (IMPORTANT FIX)
+# =========================
+
+if "canvas_id" not in st.session_state:
+    st.session_state.canvas_id = 0
+
+def reset_canvas():
+    st.session_state.canvas_id += 1
+
+# =========================
+# CANVAS
 # =========================
 
 canvas = st_canvas(
@@ -78,7 +88,7 @@ canvas = st_canvas(
     height=280,
     width=280,
     drawing_mode="freedraw",
-    key="canvas",
+    key=f"canvas_{st.session_state.canvas_id}",
 )
 
 # =========================
@@ -89,27 +99,20 @@ def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# IMAGE PROCESSING
+# PROCESS IMAGE
 # =========================
 
 if canvas.image_data is not None:
 
     img = Image.fromarray(canvas.image_data.astype("uint8"))
 
-    img_array = np.array(img)
-    gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
+    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.image(img, caption="Canvas")
-
-    with col2:
-        st.image(mnist_img, caption="28x28 MNIST")
+    st.image(mnist_img, caption="28x28 MNIST")
 
     # =========================
-    # SAVE
+    # SAVE BUTTON
     # =========================
 
     if st.button("Save to Google Sheets"):
@@ -127,3 +130,7 @@ if canvas.image_data is not None:
         sheet.append_row([name, digit_label] + pixels)
 
         st.success("Saved successfully ✅")
+
+        # 🔥 THIS IS THE FIX (CLEAR CANVAS)
+        reset_canvas()
+        st.rerun()
