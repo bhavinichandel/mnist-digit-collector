@@ -34,34 +34,28 @@ if len(data) == 0:
     sheet.append_row(headers)
 
 # =========================
-# Streamlit UI
-# =========================
-
-st.title("MNIST Digit Collector")
-
-# =========================
 # Session State
 # =========================
 
 if "canvas_key" not in st.session_state:
     st.session_state.canvas_key = 0
 
-if "digit_label" not in st.session_state:
-    st.session_state.digit_label = "0"
+# Label session state
+if "label_input" not in st.session_state:
+    st.session_state.label_input = "0"
 
 # =========================
+# Streamlit UI
+# =========================
+
+st.title("MNIST Digit Collector")
+
 # NAME
-# =========================
-
 name = st.text_input("Enter your name")
 
-# =========================
-# LABEL (TEXT INPUT)
-# =========================
-
+# LABEL
 digit_label = st.text_input(
     "Digit Label (0-9)",
-    value=st.session_state.digit_label,
     key="label_input"
 )
 
@@ -81,14 +75,14 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# Image Functions
+# Helper Function
 # =========================
 
 def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# Process Image
+# Convert image
 # =========================
 
 if canvas_result.image_data is not None:
@@ -110,43 +104,44 @@ if canvas_result.image_data is not None:
 
     if st.button("Save to Google Sheets"):
 
-        # Name Validation
+        # Name validation
         if not name.strip():
             st.error("Please enter your name.")
             st.stop()
 
-        # Label Validation
-        if len(digit_label) != 1 or not digit_label.isdigit():
-            st.error("Please enter exactly one digit between 0 and 9.")
+        # Label validation
+        if not digit_label.isdigit() or len(digit_label) != 1:
+            st.error("Please enter only one digit between 0 and 9.")
             st.stop()
 
-        if digit_label not in [str(i) for i in range(10)]:
-            st.error("Digit label must be between 0 and 9.")
+        label = int(digit_label)
+
+        if label < 0 or label > 9:
+            st.error("Digit must be between 0 and 9.")
             st.stop()
 
-        # Blank Canvas Validation
+        # Blank canvas validation
         if is_blank(mnist_img):
             st.error("Canvas is empty! Draw a digit first.")
             st.stop()
 
-        # Pixels
         pixels = mnist_img.flatten().tolist()
 
-        row = [name, int(digit_label)] + pixels
+        row = [name, label] + pixels
 
         sheet.append_row(row)
 
         st.success("Saved to Google Sheets ✅")
 
         # =========================
-        # Auto Increase Label
+        # AUTO LABEL
         # =========================
 
-        next_digit = (int(digit_label) + 1) % 10
-        st.session_state.digit_label = str(next_digit)
+        next_digit = (label + 1) % 10
+        st.session_state["label_input"] = str(next_digit)
 
         # =========================
-        # Clear Canvas
+        # RESET CANVAS
         # =========================
 
         st.session_state.canvas_key += 1
