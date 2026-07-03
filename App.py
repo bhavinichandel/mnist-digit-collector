@@ -35,6 +35,9 @@ if "canvas_key" not in st.session_state:
 if "digit" not in st.session_state:
     st.session_state.digit = 0
 
+if "saved" not in st.session_state:
+    st.session_state.saved = False
+
 # =========================
 # UI
 # =========================
@@ -59,7 +62,7 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# IMAGE PROCESSING
+# PROCESS IMAGE
 # =========================
 def is_blank(img):
     return np.mean(img) < 2
@@ -68,60 +71,53 @@ if canvas_result.image_data is not None:
 
     raw_img = canvas_result.image_data
 
-    # ✅ FIX: proper blank check BEFORE processing
-    if raw_img is None:
-        st.stop()
-
     if np.mean(raw_img) < 2:
         st.warning("Draw a digit first")
-    else:
 
+    else:
         img = Image.fromarray(raw_img.astype("uint8"))
         img_array = np.array(img)
 
-        # remove alpha channel if exists
         if img_array.shape[-1] == 4:
             img_array = img_array[:, :, :3]
 
         gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
         mnist_img = cv2.resize(gray, (28, 28))
 
-        st.image(mnist_img, caption="28x28 MNIST Image", width=200)
+        st.image(mnist_img, width=200)
 
         # =========================
-        # SAVE BUTTON (SAFE FORM)
+        # SAVE BUTTON (NO DUPLICATE EXECUTION)
         # =========================
-        with st.form("save_form"):
+        if st.button("Save to Google Sheets"):
 
-            submitted = st.form_submit_button("Save to Google Sheets")
+            if not name.strip():
+                st.error("Enter your name")
+                st.stop()
 
-            if submitted:
+            if np.mean(raw_img) < 2:
+                st.error("Draw a digit first")
+                st.stop()
 
-                if not name.strip():
-                    st.error("Enter your name")
-                    st.stop()
+            pixels = mnist_img.flatten().tolist()
 
-                if np.mean(raw_img) < 2:
-                    st.error("Draw a digit first")
-                    st.stop()
+            # 🔥 ALWAYS USE SESSION STATE ONLY
+            label_to_save = st.session_state.digit
 
-                pixels = mnist_img.flatten().tolist()
+            row = [name, label_to_save] + pixels
 
-                # ✅ FIX: always use session_state digit
-                row = [name, st.session_state.digit] + pixels
+            sheet.append_row(row)
 
-                sheet.append_row(row)
+            st.success(f"Saved Label {label_to_save} to Google Sheets ✅")
 
-                st.success("Saved to Google Sheets ✅")
+            # =========================
+            # AUTO INCREMENT (SAFE)
+            # =========================
+            st.session_state.digit = (st.session_state.digit + 1) % 10
 
-                # =========================
-                # AUTO-INCREMENT (FIXED)
-                # =========================
-                st.session_state.digit = (st.session_state.digit + 1) % 10
+            # =========================
+            # RESET CANVAS
+            # =========================
+            st.session_state.canvas_key += 1
 
-                # =========================
-                # RESET CANVAS
-                # =========================
-                st.session_state.canvas_key += 1
-
-                st.rerun()
+            st.rerun()
