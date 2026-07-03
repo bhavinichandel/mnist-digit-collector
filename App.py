@@ -59,54 +59,69 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# HELPERS
+# IMAGE PROCESSING
 # =========================
 def is_blank(img):
-    return np.mean(img) < 5
+    return np.mean(img) < 2
 
-# =========================
-# IMAGE
-# =========================
 if canvas_result.image_data is not None:
 
-    img = Image.fromarray(canvas_result.image_data.astype("uint8"))
-    st.image(img)
+    raw_img = canvas_result.image_data
 
-    img_array = np.array(img)
-    gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
-    mnist_img = cv2.resize(gray, (28, 28))
+    # ✅ FIX: proper blank check BEFORE processing
+    if raw_img is None:
+        st.stop()
 
-    st.image(mnist_img, width=200)
+    if np.mean(raw_img) < 2:
+        st.warning("Draw a digit first")
+    else:
 
-    # =========================
-    # FORM (IMPORTANT FIX)
-    # =========================
-    with st.form("save_form"):
+        img = Image.fromarray(raw_img.astype("uint8"))
+        img_array = np.array(img)
 
-        submitted = st.form_submit_button("Save to Google Sheets")
+        # remove alpha channel if exists
+        if img_array.shape[-1] == 4:
+            img_array = img_array[:, :, :3]
 
-        if submitted:
+        gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+        mnist_img = cv2.resize(gray, (28, 28))
 
-            if not name.strip():
-                st.error("Enter your name")
-                st.stop()
+        st.image(mnist_img, caption="28x28 MNIST Image", width=200)
 
-            if is_blank(mnist_img):
-                st.error("Draw a digit first")
-                st.stop()
+        # =========================
+        # SAVE BUTTON (SAFE FORM)
+        # =========================
+        with st.form("save_form"):
 
-            pixels = mnist_img.flatten().tolist()
+            submitted = st.form_submit_button("Save to Google Sheets")
 
-            row = [name, st.session_state.digit] + pixels
+            if submitted:
 
-            sheet.append_row(row)
+                if not name.strip():
+                    st.error("Enter your name")
+                    st.stop()
 
-            st.success("Saved to Google Sheets ✅")
+                if np.mean(raw_img) < 2:
+                    st.error("Draw a digit first")
+                    st.stop()
 
-            # FIXED AUTO INCREMENT
-            st.session_state.digit = (st.session_state.digit + 1) % 10
+                pixels = mnist_img.flatten().tolist()
 
-            # RESET CANVAS
-            st.session_state.canvas_key += 1
+                # ✅ FIX: always use session_state digit
+                row = [name, st.session_state.digit] + pixels
 
-            st.rerun()
+                sheet.append_row(row)
+
+                st.success("Saved to Google Sheets ✅")
+
+                # =========================
+                # AUTO-INCREMENT (FIXED)
+                # =========================
+                st.session_state.digit = (st.session_state.digit + 1) % 10
+
+                # =========================
+                # RESET CANVAS
+                # =========================
+                st.session_state.canvas_key += 1
+
+                st.rerun()
