@@ -42,7 +42,6 @@ st.title("MNIST Digit Collector")
 
 name = st.text_input("Enter your name")
 
-# ❌ NO SELECTBOX (IMPORTANT FIX)
 st.write("Current Label:", st.session_state.digit)
 
 # =========================
@@ -66,49 +65,48 @@ def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# PROCESS IMAGE
+# IMAGE
 # =========================
 if canvas_result.image_data is not None:
 
     img = Image.fromarray(canvas_result.image_data.astype("uint8"))
-    st.image(img, caption="Original")
+    st.image(img)
 
     img_array = np.array(img)
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
     mnist_img = cv2.resize(gray, (28, 28))
 
-    st.image(mnist_img, caption="28x28 MNIST Image", width=200)
+    st.image(mnist_img, width=200)
 
     # =========================
-    # SAVE BUTTON
+    # FORM (IMPORTANT FIX)
     # =========================
-    if st.button("Save to Google Sheets"):
+    with st.form("save_form"):
 
-        if not name.strip():
-            st.error("Enter your name")
-            st.stop()
+        submitted = st.form_submit_button("Save to Google Sheets")
 
-        if is_blank(mnist_img):
-            st.error("Draw a digit first")
-            st.stop()
+        if submitted:
 
-        pixels = mnist_img.flatten().tolist()
+            if not name.strip():
+                st.error("Enter your name")
+                st.stop()
 
-        # ALWAYS correct label (NO confusion now)
-        row = [name, st.session_state.digit] + pixels
+            if is_blank(mnist_img):
+                st.error("Draw a digit first")
+                st.stop()
 
-        sheet.append_row(row)
+            pixels = mnist_img.flatten().tolist()
 
-        st.success("Saved to Google Sheets ✅")
+            row = [name, st.session_state.digit] + pixels
 
-        # =========================
-        # AUTO INCREMENT (CLEAN)
-        # =========================
-        st.session_state.digit = (st.session_state.digit + 1) % 10
+            sheet.append_row(row)
 
-        # =========================
-        # RESET CANVAS
-        # =========================
-        st.session_state.canvas_key += 1
+            st.success("Saved to Google Sheets ✅")
 
-        st.rerun()
+            # FIXED AUTO INCREMENT
+            st.session_state.digit = (st.session_state.digit + 1) % 10
+
+            # RESET CANVAS
+            st.session_state.canvas_key += 1
+
+            st.rerun()
