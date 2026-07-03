@@ -42,16 +42,8 @@ st.title("MNIST Digit Collector")
 
 name = st.text_input("Enter your name")
 
-# ALWAYS show session state value
-digit_label = st.selectbox(
-    "Digit Label (0-9)",
-    options=list(range(10)),
-    index=st.session_state.digit,
-    key="digit_select"
-)
-
-# sync selectbox → session_state
-st.session_state.digit = digit_label
+# ❌ NO SELECTBOX (IMPORTANT FIX)
+st.write("Current Label:", st.session_state.digit)
 
 # =========================
 # CANVAS
@@ -74,7 +66,7 @@ def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# IMAGE PROCESSING
+# PROCESS IMAGE
 # =========================
 if canvas_result.image_data is not None:
 
@@ -102,7 +94,7 @@ if canvas_result.image_data is not None:
 
         pixels = mnist_img.flatten().tolist()
 
-        # ALWAYS use session_state (fixes 00 issue)
+        # ALWAYS correct label (NO confusion now)
         row = [name, st.session_state.digit] + pixels
 
         sheet.append_row(row)
@@ -110,7 +102,7 @@ if canvas_result.image_data is not None:
         st.success("Saved to Google Sheets ✅")
 
         # =========================
-        # AUTO INCREMENT (FIXED)
+        # AUTO INCREMENT (CLEAN)
         # =========================
         st.session_state.digit = (st.session_state.digit + 1) % 10
 
