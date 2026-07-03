@@ -40,9 +40,8 @@ if len(data) == 0:
 if "canvas_key" not in st.session_state:
     st.session_state.canvas_key = 0
 
-# Label session state
-if "label_input" not in st.session_state:
-    st.session_state.label_input = "0"
+if "current_digit" not in st.session_state:
+    st.session_state.current_digit = 0
 
 # =========================
 # Streamlit UI
@@ -54,9 +53,11 @@ st.title("MNIST Digit Collector")
 name = st.text_input("Enter your name")
 
 # LABEL
-digit_label = st.text_input(
+digit_label = st.selectbox(
     "Digit Label (0-9)",
-    key="label_input"
+    options=list(range(10)),
+    index=st.session_state.current_digit,
+    key=f"digit_select_{st.session_state.current_digit}"
 )
 
 # =========================
@@ -109,17 +110,6 @@ if canvas_result.image_data is not None:
             st.error("Please enter your name.")
             st.stop()
 
-        # Label validation
-        if not digit_label.isdigit() or len(digit_label) != 1:
-            st.error("Please enter only one digit between 0 and 9.")
-            st.stop()
-
-        label = int(digit_label)
-
-        if label < 0 or label > 9:
-            st.error("Digit must be between 0 and 9.")
-            st.stop()
-
         # Blank canvas validation
         if is_blank(mnist_img):
             st.error("Canvas is empty! Draw a digit first.")
@@ -127,18 +117,17 @@ if canvas_result.image_data is not None:
 
         pixels = mnist_img.flatten().tolist()
 
-        row = [name, label] + pixels
+        row = [name, digit_label] + pixels
 
         sheet.append_row(row)
 
         st.success("Saved to Google Sheets ✅")
 
         # =========================
-        # AUTO LABEL
+        # AUTO INCREASE LABEL
         # =========================
 
-        next_digit = (label + 1) % 10
-        st.session_state["label_input"] = str(next_digit)
+        st.session_state.current_digit = (digit_label + 1) % 10
 
         # =========================
         # RESET CANVAS
