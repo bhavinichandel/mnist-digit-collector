@@ -49,8 +49,8 @@ name = st.text_input("Enter your name")
 digit_label = st.selectbox(
     "Digit Label (0-9)",
     options=list(range(10)),
-    index=st.session_state.digit,
-    key="digit_select"
+    index=0,
+    key=f"digit_select_{st.session_state.digit}"
 )
 
 # =========================
@@ -117,7 +117,7 @@ if canvas_result.image_data is not None:
         # AUTO INCREMENT LABEL
         # =========================
 
-        st.session_state.digit = (digit_label + 1) % 10
+        st.session_state.digit = (int(digit_label) + 1) % 10
 
         # =========================
         # RESET CANVAS
