@@ -7,43 +7,36 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# Google Sheets Setup
+# Google Sheets (CACHED - NO QUOTA ISSUE)
 # =========================
 
-scopes = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+@st.cache_resource
+def get_sheet():
 
-creds = Credentials.from_service_account_info(
-    st.secrets["google"],
-    scopes=scopes
-)
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 
-client = gspread.authorize(creds)
-sheet = client.open("MNIST Dataset").sheet1
+    creds = Credentials.from_service_account_info(
+        st.secrets["google"],
+        scopes=scopes
+    )
 
-# =========================
-# Create headers ONLY ONCE
-# =========================
+    client = gspread.authorize(creds)
+    return client.open("MNIST Dataset").sheet1
 
-headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
-
-try:
-    if sheet.acell("A1").value != "name":
-        sheet.insert_row(headers, 1)
-except:
-    sheet.insert_row(headers, 1)
+sheet = get_sheet()
 
 # =========================
-# Session State
+# SESSION STATE
 # =========================
 
 if "canvas_key" not in st.session_state:
     st.session_state.canvas_key = 0
 
-if "current_digit" not in st.session_state:
-    st.session_state.current_digit = 0
+if "digit" not in st.session_state:
+    st.session_state.digit = 0
 
 # =========================
 # UI
@@ -56,11 +49,12 @@ name = st.text_input("Enter your name")
 digit_label = st.selectbox(
     "Digit Label (0-9)",
     options=list(range(10)),
-    index=st.session_state.current_digit,
+    index=st.session_state.digit,
+    key="digit_select"
 )
 
 # =========================
-# Canvas
+# CANVAS
 # =========================
 
 canvas_result = st_canvas(
@@ -75,14 +69,14 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# Helper
+# HELPERS
 # =========================
 
 def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# Process Image
+# IMAGE PROCESSING
 # =========================
 
 if canvas_result.image_data is not None:
@@ -91,35 +85,44 @@ if canvas_result.image_data is not None:
     st.image(img, caption="Original")
 
     img_array = np.array(img)
-
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
-
     mnist_img = cv2.resize(gray, (28, 28))
 
     st.image(mnist_img, caption="28x28 MNIST Image", width=200)
 
+    # =========================
+    # SAVE BUTTON
+    # =========================
+
     if st.button("Save to Google Sheets"):
 
         if not name.strip():
-            st.error("Please enter your name.")
+            st.error("Enter your name")
             st.stop()
 
         if is_blank(mnist_img):
-            st.error("Canvas is empty! Draw a digit first.")
+            st.error("Draw a digit first")
             st.stop()
 
         pixels = mnist_img.flatten().tolist()
 
         row = [name, digit_label] + pixels
 
+        # ONLY WRITE (NO READ = NO QUOTA ISSUE)
         sheet.append_row(row)
 
         st.success("Saved to Google Sheets ✅")
 
-        # Auto Increment
-        st.session_state.current_digit = (digit_label + 1) % 10
+        # =========================
+        # AUTO INCREMENT LABEL
+        # =========================
 
-        # Reset Canvas
+        st.session_state.digit = (digit_label + 1) % 10
+
+        # =========================
+        # RESET CANVAS
+        # =========================
+
         st.session_state.canvas_key += 1
 
         st.rerun()
