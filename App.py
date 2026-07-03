@@ -7,12 +7,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# Google Sheets (CACHED - NO QUOTA ISSUE)
+# GOOGLE SHEETS (CACHED)
 # =========================
-
 @st.cache_resource
 def get_sheet():
-
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -31,7 +29,6 @@ sheet = get_sheet()
 # =========================
 # SESSION STATE
 # =========================
-
 if "canvas_key" not in st.session_state:
     st.session_state.canvas_key = 0
 
@@ -41,7 +38,6 @@ if "digit" not in st.session_state:
 # =========================
 # UI
 # =========================
-
 st.title("MNIST Digit Collector")
 
 name = st.text_input("Enter your name")
@@ -49,14 +45,12 @@ name = st.text_input("Enter your name")
 digit_label = st.selectbox(
     "Digit Label (0-9)",
     options=list(range(10)),
-    index=0,
-    key=f"digit_select_{st.session_state.digit}"
+    index=st.session_state.digit
 )
 
 # =========================
 # CANVAS
 # =========================
-
 canvas_result = st_canvas(
     fill_color="black",
     stroke_width=15,
@@ -69,16 +63,14 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# HELPERS
+# HELPER
 # =========================
-
 def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# IMAGE PROCESSING
+# PROCESS IMAGE
 # =========================
-
 if canvas_result.image_data is not None:
 
     img = Image.fromarray(canvas_result.image_data.astype("uint8"))
@@ -93,7 +85,6 @@ if canvas_result.image_data is not None:
     # =========================
     # SAVE BUTTON
     # =========================
-
     if st.button("Save to Google Sheets"):
 
         if not name.strip():
@@ -108,7 +99,6 @@ if canvas_result.image_data is not None:
 
         row = [name, digit_label] + pixels
 
-        # ONLY WRITE (NO READ = NO QUOTA ISSUE)
         sheet.append_row(row)
 
         st.success("Saved to Google Sheets ✅")
@@ -116,13 +106,11 @@ if canvas_result.image_data is not None:
         # =========================
         # AUTO INCREMENT LABEL
         # =========================
-
-        st.session_state.digit = (int(digit_label) + 1) % 10
+        st.session_state.digit = (digit_label + 1) % 10
 
         # =========================
         # RESET CANVAS
         # =========================
-
         st.session_state.canvas_key += 1
 
         st.rerun()
