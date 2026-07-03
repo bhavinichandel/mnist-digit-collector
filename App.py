@@ -24,14 +24,16 @@ client = gspread.authorize(creds)
 sheet = client.open("MNIST Dataset").sheet1
 
 # =========================
-# Create headers (ONLY ONCE)
+# Create headers ONLY ONCE
 # =========================
 
 headers = ["name", "label"] + [f"pixel_{i}" for i in range(784)]
-data = sheet.get_all_values()
 
-if len(data) == 0:
-    sheet.append_row(headers)
+try:
+    if sheet.acell("A1").value != "name":
+        sheet.insert_row(headers, 1)
+except:
+    sheet.insert_row(headers, 1)
 
 # =========================
 # Session State
@@ -44,24 +46,21 @@ if "current_digit" not in st.session_state:
     st.session_state.current_digit = 0
 
 # =========================
-# Streamlit UI
+# UI
 # =========================
 
 st.title("MNIST Digit Collector")
 
-# NAME
 name = st.text_input("Enter your name")
 
-# LABEL
 digit_label = st.selectbox(
     "Digit Label (0-9)",
     options=list(range(10)),
     index=st.session_state.current_digit,
-    key=f"digit_select_{st.session_state.current_digit}"
 )
 
 # =========================
-# CANVAS
+# Canvas
 # =========================
 
 canvas_result = st_canvas(
@@ -76,14 +75,14 @@ canvas_result = st_canvas(
 )
 
 # =========================
-# Helper Function
+# Helper
 # =========================
 
 def is_blank(img):
     return np.mean(img) < 5
 
 # =========================
-# Convert image
+# Process Image
 # =========================
 
 if canvas_result.image_data is not None:
@@ -99,18 +98,12 @@ if canvas_result.image_data is not None:
 
     st.image(mnist_img, caption="28x28 MNIST Image", width=200)
 
-    # =========================
-    # SAVE BUTTON
-    # =========================
-
     if st.button("Save to Google Sheets"):
 
-        # Name validation
         if not name.strip():
             st.error("Please enter your name.")
             st.stop()
 
-        # Blank canvas validation
         if is_blank(mnist_img):
             st.error("Canvas is empty! Draw a digit first.")
             st.stop()
@@ -123,16 +116,10 @@ if canvas_result.image_data is not None:
 
         st.success("Saved to Google Sheets ✅")
 
-        # =========================
-        # AUTO INCREASE LABEL
-        # =========================
-
+        # Auto Increment
         st.session_state.current_digit = (digit_label + 1) % 10
 
-        # =========================
-        # RESET CANVAS
-        # =========================
-
+        # Reset Canvas
         st.session_state.canvas_key += 1
 
         st.rerun()
