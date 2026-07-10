@@ -6,15 +6,13 @@ import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 
 # ========================================================
-# 1. AUTOMATIC GOOGLE SHEETS SETUP
+# 1. AUTOMATIC SECURE GOOGLE SHEETS SETUP
 # ========================================================
 try:
-    # Uses the official direct file shortcut link to connect to Google Sheets
-    client = gspread.service_account(filename="google_key.json")
+    # Converts your secure cloud Secrets dictionary directly into credentials
+    service_account_info = dict(st.secrets["google"])
+    client = gspread.service_account_from_dict(service_account_info)
     sheet = client.open("MNIST Dataset").sheet1
-except FileNotFoundError:
-    st.error("⚠️ Missing 'google_key.json'! Please make sure the file is right next to App.py in your sidebar.")
-    st.stop()
 except Exception as e:
     st.error(f"Google Connection Error: {e}")
     st.stop()
